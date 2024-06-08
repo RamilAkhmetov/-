@@ -15,6 +15,8 @@ from Finder import Finder_of_main_rectangle, Finder_of_circles_contours_cv2
 from Checker import Checker_of_circles_contours
 from Color import ColorExtracter
 
+from Processor import CellsFinder, CellsPostprocessor
+import multiprocessing as mp
 def normalize_path(path):
     n_path = ""
     for s in path:
@@ -65,9 +67,16 @@ def find_child( parent_object: QtWidgets.QWidget, child_type=None, child_name=No
 
 def from_cv2_to_pixmap(cv2_image):
     image = cv2_image
-    image = QtGui.QImage(image, image.shape[1], image.shape[0], image.shape[1] * 3, QtGui.QImage.Format.Format_RGB888)
-    pix = QtGui.QPixmap(image)
+
+    #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    qt_image = QtGui.QImage(image, image.shape[1], image.shape[0], image.shape[1] * 3, QtGui.QImage.Format.Format_RGB888)
+    print("ok qt_image")
+    pix = QtGui.QPixmap(qt_image)
     return pix
+
+def scale_cv2(cv2_image, width, height):
+    return cv2.resize(cv2_image, (width, height), interpolation=cv2.INTER_CUBIC)
+
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     """
@@ -136,6 +145,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # связать с обработчиком
         # bid with slot
         open_photo_button_action.triggered.connect(self.onOpenPhotoButtonClicked)
+
+        open_dir_button_action = QtGui.QAction("&Открыть фото", self)
+        open_dir_button_action.triggered.connect()
 
         # создать меню у главного окна
         # create a menu of main window
@@ -221,23 +233,53 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         header_photo_processing_layout.addWidget(header_photo_processing_save_button, 0, 4)
 
 
+        header_dir_processing_box = QtWidgets.QFrame(objectName="header_dir_processing_box")
+        header_photo_processing_layout = QtWidgets.QGridLayout()
+        header_photo_processing_box.setLayout(header_photo_processing_layout)
+        
+
 
         # создать виджет для размещения блоков виджетов, отвечающих определенным режимам
         # make a layout for stacking widgets
 
-        stacked_widget = QtWidgets.QStackedWidget()
+        header_stacked_widget = QtWidgets.QStackedWidget()
+
         # добавить пустой блок в стек-виджет первым
-        stacked_widget.addWidget(header_empty_frame)
-        stacked_widget.addWidget(header_photo_processing_box)
+        header_stacked_widget.addWidget(header_empty_frame)
+        header_stacked_widget.addWidget(header_photo_processing_box)
 
 
         #stacked_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.MinimumExpanding, QtWidgets.QSizePolicy.Policy.MinimumExpanding)
 
-        header_layout.addWidget(stacked_widget)
+        header_layout.addWidget(header_stacked_widget)
 
 
-        frame_layout = QtWidgets.QHBoxLayout()
+        frame_layout = QtWidgets.QVBoxLayout()
+        frame_layout.setContentsMargins(0, 0, 0, 0)
         self.frame.setLayout(frame_layout)
+        print("ok")
+
+
+        right_sidebar_layout = QtWidgets.QVBoxLayout()
+        right_sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        self.right_sidebar.setLayout(right_sidebar_layout)
+        right_sidebar_empty_frame = QtWidgets.QFrame(objectName="right_sidebar_empty_frame")
+        right_sidebar_photo_processing_box = QtWidgets.QFrame(objectName="right_sidebar_photo_processing_box")
+        right_sidebar_photo_processing_layout = QtWidgets.QGridLayout()
+        right_sidebar_photo_processing_box.setLayout(right_sidebar_photo_processing_layout)
+        right_sidebar_photo_processing_save_table_button = QtWidgets.QPushButton(text="Сохранить таблицу",
+                                                                    objectName="right_sidebar_photo_processing_save_table_button")
+        right_sidebar_photo_processing_save_table_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
+                                                          QtWidgets.QSizePolicy.Policy.Maximum)
+        right_sidebar_photo_processing_save_image_button = QtWidgets.QPushButton(text="Сохранить картинки",
+                                                                                 objectName="right_sidebar_photo_processing_save_image_button")
+        right_sidebar_photo_processing_save_image_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
+                                                                       QtWidgets.QSizePolicy.Policy.Maximum)
+        right_sidebar_stacked_widget = QtWidgets.QStackedWidget()
+        right_sidebar_stacked_widget.addWidget(right_sidebar_empty_frame)
+        right_sidebar_stacked_widget.addWidget(right_sidebar_photo_processing_box)
+        right_sidebar_layout.addWidget(right_sidebar_stacked_widget)
+
 
 
 
@@ -275,6 +317,18 @@ class OpenPhotoDialog(QtWidgets.QFileDialog):
     def __init__(self):
         super(OpenPhotoDialog, self).__init__()
 
+
+class DirProcessing(QtCore.QObject):
+    def __init__(self, filenames_list, header, left_sidebar, right_sidebar, frame):
+        super(DirProcessing, self).__init__()
+        self.header = header
+
+        self.left_sidebar = left_sidebar
+        self.right_sidebar = right_sidebar
+        self.frame = frame
+
+        self.filenames = filenames_list
+        self.photos_count = len(self.filenames)
 
 
 class PhotoProcessing(QtCore.QObject):
@@ -376,6 +430,13 @@ class PhotoProcessing(QtCore.QObject):
         self.filenames = filenames_list # [str]
         self.photos_count = len(self.filenames)
 
+        self.modes = {'rgb_camag': [], 'rgb_camera': [], 'ir': [], '366': [], '254': []}
+        self.wrong_modes = []
+        self.wrong_images = []
+        self.results = []
+        self.cellspostprocess_data = []
+
+
         self.initial_images = []  # []
         self.main_rectangle_boxes = []  # []
         self.main_rectangle_images = []  # []
@@ -387,17 +448,20 @@ class PhotoProcessing(QtCore.QObject):
 
         #self.processImage()
         self.setupUI()
-        self.preprocessImages()
+        self.getInitialImages()
+        self.findCells()
+        self.visualizeResults()
+        #self.preprocessImages()
 
 
 
 
     def setupUI(self):
-
+        print("ok postprocess setupui")
         # header
         self.header.setLineWidth(0)
         self.header.setFrameStyle(QtWidgets.QFrame.Shape.Panel)
-        self.header.setFixedHeight(200)
+        self.header.setFixedHeight(100)
 
 
         # ссылка на стек-виджет хидера
@@ -460,10 +524,9 @@ class PhotoProcessing(QtCore.QObject):
 
 
         # right sidebar
-        self.right_sidebar.setFixedWidth(400)
+        self.right_sidebar.setFixedWidth(200)
 
-        right_sidebar_layout = QtWidgets.QVBoxLayout()
-        self.right_sidebar.setLayout(right_sidebar_layout)
+
 
 
 
@@ -473,7 +536,8 @@ class PhotoProcessing(QtCore.QObject):
 
         # frame
         self.frame_stacked_widget = QtWidgets.QStackedWidget(objectName="frame_stacked_widget")
-        #self.frame_stacked_widget.setSizePolicy()
+        self.frame_stacked_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        print("stacked widget init")
         #print(self.frame_stacked_widget.sizePolicy().horizontalPolicy())
 
         for i in range(self.photos_count):
@@ -499,6 +563,7 @@ class PhotoProcessing(QtCore.QObject):
             self.frame_stacked_widget.addWidget(stage_stacked_widget)
 
         frame_layout = find_child(self.frame, child_type=QtWidgets.QHBoxLayout)
+        print("find child ok")
         frame_layout.addWidget(self.frame_stacked_widget)
 
 
@@ -526,11 +591,55 @@ class PhotoProcessing(QtCore.QObject):
 
 
     def onSaveButtonClicked(self):
+        self.write_simple_table()
+
+    def write_simple_table(self):
+        filename, _ = QtWidgets.QFileDialog.getSaveFileName(None, "Сохранить таблицу цветов", "",
+                                                            "Excel Files (*.xlsx)", )
+        print(filename)
+        if filename:
+            pass
+        else:
+            return
+        wb = Workbook()
+        abc = "ABCDEFGHIJKLMNQOPRST"
+        for i, image in enumerate(self.filenames):
+            ws = wb.create_sheet(self.filenames[i].split("/")[-1])
+            c = ws.cell(row=1, column=2)
+            c.value = "R"
+            c = ws.cell(row=1, column=3)
+            c.value = "G"
+            c = ws.cell(row=1, column=4)
+            c.value = "B"
+            rows_count = self.cellspostprocess_data[i].rows_count
+            columns_count = self.cellspostprocess_data[i].columns_count
+            table_of_centers = self.cellspostprocess_data[i].table_of_centers
+            table_of_blue_int = self.cellspostprocess_data[i].table_of_blue_int
+            table_of_green_int = self.cellspostprocess_data[i].table_of_green_int
+            table_of_red_int = self.cellspostprocess_data[i].table_of_red_int
+            for j, row in enumerate(self.cellspostprocess_data[i].table_of_centers):
+                for k, column in enumerate(row):
+                    c = ws.cell(row=2+j*columns_count+k, column=1)
+                    c.value = abc[j]+str(k+1)
+                    c = ws.cell(row=2+j*columns_count+k, column=2)
+                    c.value = table_of_red_int[table_of_centers[j][k]]
+                    c = ws.cell(row=2 + j * columns_count + k, column=3)
+                    c.value = table_of_green_int[table_of_centers[j][k]]
+                    c = ws.cell(row=2 + j * columns_count + k, column=4)
+                    c.value = table_of_blue_int[table_of_centers[j][k]]
+        wb.save(filename)
 
 
+
+
+    def write_old_table(self):
 
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(None, "Сохранить таблицу цветов", "", "Excel Files (*.xlsx)", )
         print(filename)
+        if filename:
+            pass
+        else:
+            return
         wb = Workbook()
 
         print(self.colors)
@@ -561,10 +670,94 @@ class PhotoProcessing(QtCore.QObject):
 
 
         wb.save(filename)
-    def getInitialImage(self):
-        pass
+
+    def getInitialImages(self):
+        for image in self.filenames:
+            file = open(image, "rb")
+            data = file.read()
+            initial_image = cv2.imdecode(np.frombuffer(data, np.uint8), flags=cv2.IMREAD_COLOR)
+            initial_image = cv2.cvtColor(initial_image, cv2.COLOR_BGR2RGB)
+            self.initial_images.append(initial_image)
+
+    def findCells(self):
+        #modes = {'rgb camag': 0, 'rgb camera': 0, 'ir': 0, '366': 0, '254': 0}
+        for image in self.filenames:
+            mode = os.path.splitext(image)[0].split(sep=" ")[-1]
+            if mode in self.modes.keys():
+                self.modes[mode].append(image)
+            else:
+                self.wrong_modes.append(mode)
+                self.wrong_images.append(image)
+        # сделать мультипроцессорное распознавание для разных типов
+
+        cf = CellsFinder(self.initial_images, 'universal')
+        self.results = cf.results
+        print("ok cf")
+    def visualizeResults(self):
+        for i in range(self.photos_count):
+            cp = CellsPostprocessor(self.results[i], self.initial_images[i])
+            self.cellspostprocess_data.append(cp)
+            print("ok cp")
+
+            initial_graphics_view = self.frame_stacked_widget.widget(i).widget(0)
+            contours_graphics_view = self.frame_stacked_widget.widget(i).widget(1)
+            colors_graphics_view = self.frame_stacked_widget.widget(i).widget(2)
+
+            scene_width = initial_graphics_view.width()
+            scene_height = initial_graphics_view.height()
+
+            image_aspect_ratio = cp.rotated_image.shape[1]/cp.rotated_image.shape[0] #для повернутого изображения
+            if image_aspect_ratio > 1:
+                resized_width = scene_width
+                resized_height = round(scene_width/image_aspect_ratio)
+            else:
+                resized_width = round(scene_width*image_aspect_ratio)
+                resized_height = scene_height
+            #pix_initial_image = from_cv2_to_pixmap(scale_cv2(cp.rotated_image, resized_width, resized_height))
+            pix_initial_image = from_cv2_to_pixmap(cp.rotated_image)
+            #initial_graphics_view.setSceneRect(0, 0, 1200, 600)
+            #initial_graphics_view.fitInView(initial_graphics_view.scene().sceneRect())
+            initial_graphics_view.scene().addPixmap(pix_initial_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
+            #initial_graphics_view.scene().addPixmap(pix_initial_image)
+            print("ok init resize")
+            print("frame", self.frame.width(), self.frame.height())
+            print("frame stacked widget", self.frame_stacked_widget.size(), self.frame_stacked_widget.sizePolicy())
+            print("graphics stacked widget", self.frame_stacked_widget.widget(i).width(), self.frame_stacked_widget.widget(i).height())
+            print("graphics view", initial_graphics_view.sceneRect(), initial_graphics_view.width(), initial_graphics_view.height())
+            print("scene", initial_graphics_view.scene().width(), initial_graphics_view.scene().height())
+            print("pix", pix_initial_image.width(), pix_initial_image.height())
+
+            pix_contours_image = from_cv2_to_pixmap(cp.contours_image)
+            contours_graphics_view.scene().addPixmap(pix_contours_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
+            #contours_graphics_view.scene().addPixmap(pix_contours_image)
+            print("ok cont resize")
+
+            rgb_pretty_image = cv2.cvtColor(cp.pretty_image, cv2.COLOR_BGR2RGB)
+            print("ok bgr to rgb")
+            pix_colors_image = from_cv2_to_pixmap(cp.pretty_image)
+            print("ok colors cv to pix")
+            image_aspect_ratio = pix_colors_image.width() / pix_colors_image.height()  # для повернутого изображения
+            if image_aspect_ratio > 1:
+                resized_width = scene_width
+                resized_height = round(scene_width / image_aspect_ratio)
+            else:
+                resized_width = round(scene_width * image_aspect_ratio)
+                resized_height = scene_height
+
+            colors_graphics_view.scene().addPixmap(pix_colors_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
+            #colors_graphics_view.scene().addPixmap(pix_colors_image)
+            print("ok colors resize")
+
+
+
+
+
+
+
 
     def preprocessImages(self):
+        mode = " ".join(os.path.splitext(self.filenames[0])[0].split(sep=" ")[1:])
+        cf = CellsFinder(self.filenames, mode)
         for i in range(self.photos_count):
             rectangle_graphics_view = self.frame_stacked_widget.widget(i).widget(0)
             contours_graphics_view = self.frame_stacked_widget.widget(i).widget(1)
@@ -600,7 +793,7 @@ class PhotoProcessing(QtCore.QObject):
 
             # попытаься найти на фото непосредственно планшетку
             # try to find only tablet
-
+            #
             find_main_rectangle_class = Finder_of_main_rectangle(initial_image)
             print("Main rect done", time.time() - start)
             if find_main_rectangle_class is not None:
@@ -612,7 +805,7 @@ class PhotoProcessing(QtCore.QObject):
                 # иначе искать контуры на исходном фото
                 # use initial image
                 image = initial_image
-            #
+
 
             print("ok")
             find_contours_class = Finder_of_circles_contours_cv2(image)
@@ -676,6 +869,8 @@ class MyErrorsWarnings:
         dlg.setWindowTitle("Сообщение")
         dlg.setText("Фото не выбрано")
         button = dlg.exec()
+
+
 
 def main():
 
