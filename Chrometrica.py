@@ -1,3 +1,5 @@
+import multiprocessing as mp
+mp.freeze_support()
 import sys
 import os
 import time
@@ -16,7 +18,7 @@ from Checker import Checker_of_circles_contours
 from Color import ColorExtracter
 
 from Processor import CellsFinder, CellsPostprocessor
-import multiprocessing as mp
+
 def normalize_path(path):
     n_path = ""
     for s in path:
@@ -108,7 +110,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.modes = ["Новое исследование", "Обработка фото",]
         self.current_mode = None
         self.setupUi(self)
-        self.setWindowTitle("Оцифровка планшеток")
+        self.setWindowTitle("Chrometrica")
         self.setWindowState(QtCore.Qt.WindowState.WindowMaximized)
 
         self.photo_process = None
@@ -134,10 +136,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # создать кнопку "Новое исследование"
         # make a "Create study" button
-        create_study_button_action = QtGui.QAction("&Новое исследование", self)
+        #create_study_button_action = QtGui.QAction("&Новое исследование", self)
         # связать с обработчиком
         # bid with slot
-        create_study_button_action.triggered.connect(self.onCreateStudyButtonClicked)
+        #create_study_button_action.triggered.connect(self.onCreateStudyButtonClicked)
 
         # создать кнопку "Открыть фото"
         # make a "Open photo" button
@@ -146,8 +148,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # bid with slot
         open_photo_button_action.triggered.connect(self.onOpenPhotoButtonClicked)
 
-        open_dir_button_action = QtGui.QAction("&Открыть фото", self)
-        open_dir_button_action.triggered.connect()
+        open_dir_button_action = QtGui.QAction("&Открыть папку", self)
+        open_dir_button_action.triggered.connect(self.onOpenDirButtonClicked)
+
+        create_samples_schema = QtGui.QAction("&Создать схему образцов", self)
+        create_samples_schema.triggered.connect(self.onCreateSamplesSchemaButtonClicked)
 
         # создать меню у главного окна
         # create a menu of main window
@@ -166,6 +171,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # добавить в раздел "Файл" кнопку "Открыть фото"
         # add "Open photo" to "File" section
         file_menu.addAction(open_photo_button_action)
+        file_menu.addAction(open_dir_button_action)
+        file_menu.addSeparator()
+        file_menu.addAction(create_samples_schema)
 
     def setupui(self):
         """
@@ -233,10 +241,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         header_photo_processing_layout.addWidget(header_photo_processing_save_button, 0, 4)
 
 
+
+        # режим папки
         header_dir_processing_box = QtWidgets.QFrame(objectName="header_dir_processing_box")
-        header_photo_processing_layout = QtWidgets.QGridLayout()
-        header_photo_processing_box.setLayout(header_photo_processing_layout)
+        header_dir_processing_layout = QtWidgets.QGridLayout()
+        header_dir_processing_box.setLayout(header_dir_processing_layout)
+
+        header_dir_processing_files_combobox = QtWidgets.QComboBox(
+            objectName="header_dir_processing_files_combobox")
         
+
+
+
 
 
         # создать виджет для размещения блоков виджетов, отвечающих определенным режимам
@@ -283,7 +299,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 
 
-    def onCreateStudyButtonClicked(self):
+    def onCreateSamplesSchemaButtonClicked(self):
+        pass
+
+    def onOpenDirButtonClicked(self):
         pass
 
     def onOpenPhotoButtonClicked(self):
