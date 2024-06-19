@@ -18,6 +18,10 @@ from Checker import Checker_of_circles_contours
 from Color import ColorExtracter
 
 from Processor import CellsFinder, CellsPostprocessor
+from Style import style
+from PhotoProcessingWidgets import AdjustmentDialog
+
+from cfg import Config
 
 def normalize_path(path):
     n_path = ""
@@ -67,10 +71,12 @@ def find_child( parent_object: QtWidgets.QWidget, child_type=None, child_name=No
     else:
         return None
 
-def from_cv2_to_pixmap(cv2_image):
-    image = cv2_image
-
-    #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+def from_cv2_to_pixmap(cv2_image, bgr_to_rgb=True):
+    image = cv2_image.copy()
+    if bgr_to_rgb:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    else:
+        pass
     qt_image = QtGui.QImage(image, image.shape[1], image.shape[0], image.shape[1] * 3, QtGui.QImage.Format.Format_RGB888)
     print("ok qt_image")
     pix = QtGui.QPixmap(qt_image)
@@ -249,7 +255,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         header_dir_processing_files_combobox = QtWidgets.QComboBox(
             objectName="header_dir_processing_files_combobox")
-        
+
+
+        # создать схему образцов
+        header_schema_making_box = QtWidgets.QFrame(objectName="header_schema_making_box")
+        header_schema_making_layout = QtWidgets.QGridLayout()
+        header_schema_making_box.setLayout(header_schema_making_layout)
+
+
+
 
 
 
@@ -270,31 +284,55 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         header_layout.addWidget(header_stacked_widget)
 
 
-        frame_layout = QtWidgets.QVBoxLayout()
-        frame_layout.setContentsMargins(0, 0, 0, 0)
-        self.frame.setLayout(frame_layout)
+
         print("ok")
 
 
         right_sidebar_layout = QtWidgets.QVBoxLayout()
         right_sidebar_layout.setContentsMargins(0, 0, 0, 0)
         self.right_sidebar.setLayout(right_sidebar_layout)
-        right_sidebar_empty_frame = QtWidgets.QFrame(objectName="right_sidebar_empty_frame")
-        right_sidebar_photo_processing_box = QtWidgets.QFrame(objectName="right_sidebar_photo_processing_box")
-        right_sidebar_photo_processing_layout = QtWidgets.QGridLayout()
-        right_sidebar_photo_processing_box.setLayout(right_sidebar_photo_processing_layout)
-        right_sidebar_photo_processing_save_table_button = QtWidgets.QPushButton(text="Сохранить таблицу",
-                                                                    objectName="right_sidebar_photo_processing_save_table_button")
-        right_sidebar_photo_processing_save_table_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
-                                                          QtWidgets.QSizePolicy.Policy.Maximum)
-        right_sidebar_photo_processing_save_image_button = QtWidgets.QPushButton(text="Сохранить картинки",
-                                                                                 objectName="right_sidebar_photo_processing_save_image_button")
-        right_sidebar_photo_processing_save_image_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
-                                                                       QtWidgets.QSizePolicy.Policy.Maximum)
         right_sidebar_stacked_widget = QtWidgets.QStackedWidget()
+        right_sidebar_empty_frame = QtWidgets.QFrame(objectName="right_sidebar_empty_frame")
+        right_sidebar_photo_processing_stacked_box = QtWidgets.QStackedWidget(objectName="right_sidebar_photo_processing_box")
+        right_sidebar_photoprocessing_info_frame = QtWidgets.QFrame(
+            objectName="right_sidebar_photoprocessing_info_frame")
+        right_sidebar_photoprocessing_contours_frame = QtWidgets.QFrame(
+            objectName="right_sidebar_photoprocessing_contours_frame")
+        right_sidebar_photoprocessing_contours_layout = QtWidgets.QGridLayout(objectName="right_sidebar_photoprocessing_contours_layout")
+        right_sidebar_photoprocessing_contours_edit_button_icon = QtGui.QIcon("icons/icons8-select-cursor-24.png")
+        right_sidebar_photoprocessing_contours_edit_button = QtWidgets.QPushButton(
+            right_sidebar_photoprocessing_contours_edit_button_icon, "Редактировать", objectName="right_sidebar_photoprocessing_contours_edit_button")
+        right_sidebar_photoprocessing_contours_apply_button = QtWidgets.QPushButton("Применить", objectName="right_sidebar_photoprocessing_contours_apply_button")
+        right_sidebar_photoprocessing_contours_radius_fraction_input = QtWidgets.QDoubleSpinBox(objectName="right_sidebar_photoprocessing_contours_radius_fraction_input")
+        right_sidebar_photoprocessing_contours_layout.addWidget(right_sidebar_photoprocessing_contours_edit_button, 1,
+                                                                1)
+        right_sidebar_photoprocessing_contours_layout.addWidget(right_sidebar_photoprocessing_contours_apply_button, 1,
+                                                                2)
+        right_sidebar_photoprocessing_contours_layout.addWidget(
+            right_sidebar_photoprocessing_contours_radius_fraction_input, 2, 1)
+        right_sidebar_photoprocessing_contours_frame.setLayout(right_sidebar_photoprocessing_contours_layout)
+        right_sidebar_photoprocessing_colors_frame = QtWidgets.QFrame(
+            )
+        right_sidebar_photo_processing_stacked_box.addWidget(right_sidebar_photoprocessing_info_frame)
+        right_sidebar_photo_processing_stacked_box.addWidget(right_sidebar_photoprocessing_contours_frame)
+        right_sidebar_photo_processing_stacked_box.addWidget(right_sidebar_photoprocessing_colors_frame)
+        right_sidebar_photo_processing_stacked_box.setCurrentIndex(2)
         right_sidebar_stacked_widget.addWidget(right_sidebar_empty_frame)
-        right_sidebar_stacked_widget.addWidget(right_sidebar_photo_processing_box)
+        right_sidebar_stacked_widget.addWidget(right_sidebar_photo_processing_stacked_box)
+        right_sidebar_stacked_widget.setHidden(True)
         right_sidebar_layout.addWidget(right_sidebar_stacked_widget)
+        # right_sidebar_photo_processing_layout = QtWidgets.QGridLayout()
+        # right_sidebar_photo_processing_box.setLayout(right_sidebar_photo_processing_layout)
+        # right_sidebar_photo_processing_save_table_button = QtWidgets.QPushButton(text="Сохранить таблицу",
+        #                                                             objectName="right_sidebar_photo_processing_save_table_button")
+        # right_sidebar_photo_processing_save_table_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
+        #                                                   QtWidgets.QSizePolicy.Policy.Maximum)
+        # right_sidebar_photo_processing_save_image_button = QtWidgets.QPushButton(text="Сохранить картинки",
+        #                                                                          objectName="right_sidebar_photo_processing_save_image_button")
+        # right_sidebar_photo_processing_save_image_button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
+        #                                                                QtWidgets.QSizePolicy.Policy.Maximum)
+        print("Main Window setup UI ")
+
 
 
 
@@ -310,22 +348,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         Слот для кнопки "Открыть фото"
         "Open photo" button slot
         """
-        open_photo_dialog = OpenPhotoDialog()
-        photo_filenames = open_photo_dialog.getOpenFileNames(self, 'Открыть фото', '',
-                                                             "Изображения (*.jpg *.jpeg *.png)")
+
+        if self.photo_process is not None:
+            self.photo_process.close()
+            self.photo_process = None
+            print("closed")
+        self.photo_process = PhotoProcessing(self, self.header, self.left_sidebar,
+                                             self.right_sidebar, self.frame)
 
 
-        if len(photo_filenames[0]) > 0:
-            #print(photo_filenames[0])
-            if self.photo_process is not None:
-                self.photo_process.close()
-                self.photo_process = None
-                print("closed")
-            self.photo_process = PhotoProcessing(photo_filenames[0], self.header, self.left_sidebar,
-                                            self.right_sidebar, self.frame)
-
-        else:
-            MyErrorsWarnings().open_photo_empty_warnings(self)
 
 
     def updateHeader(self):
@@ -336,6 +367,9 @@ class OpenPhotoDialog(QtWidgets.QFileDialog):
     def __init__(self):
         super(OpenPhotoDialog, self).__init__()
 
+class SamplesSchemaMaker:
+    def __init__(self, ):
+        pass
 
 class DirProcessing(QtCore.QObject):
     def __init__(self, filenames_list, header, left_sidebar, right_sidebar, frame):
@@ -348,6 +382,7 @@ class DirProcessing(QtCore.QObject):
 
         self.filenames = filenames_list
         self.photos_count = len(self.filenames)
+
 
 
 class PhotoProcessing(QtCore.QObject):
@@ -404,7 +439,7 @@ class PhotoProcessing(QtCore.QObject):
 
 
     """
-    def __init__(self, filenames_list, header, left_sidebar, right_sidebar, frame):
+    def __init__(self, main_window, header, left_sidebar, right_sidebar, frame):
         """
 
         :param filenames_list: [str, ]
@@ -422,8 +457,9 @@ class PhotoProcessing(QtCore.QObject):
         """
         super(PhotoProcessing, self).__init__()
         # виджеты, которыми будем манипулировать извне. Будем размещать кнопки и прочее в эти контейнеры
+        self.config = Config()
+        self.main_window = main_window
         self.header = header
-
         self.left_sidebar = left_sidebar
         self.right_sidebar = right_sidebar
         self.frame = frame
@@ -444,19 +480,34 @@ class PhotoProcessing(QtCore.QObject):
 
 
 
-
+        self.photos_selected = False
+        self.process_adjusted = False
         # аттрибуты для обработки фото
-        self.filenames = filenames_list # [str]
-        self.photos_count = len(self.filenames)
+        self.filenames = [] # [str]
+        self.photos_count = None
 
-        self.modes = {'rgb_camag': [], 'rgb_camera': [], 'ir': [], '366': [], '254': []}
+        self.modes = dict.fromkeys(self.config.modes)
+        for m in self.modes.keys():
+            self.modes[m] = []
+
+        self.conf = None
+        self.max_det = None
+        self.iou = None
+        self.max_rows = None
+        self.max_columns = None
+
+        self.images_modes = {}
         self.wrong_modes = []
         self.wrong_images = []
-        self.results = []
-        self.cellspostprocess_data = []
+        self.results = {}
+        self.cellspostprocess_data = {}
 
+        # contours
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input = None
+        self.contours_pixmap_item = None
+        self.radius_fractions = []
 
-        self.initial_images = []  # []
+        self.initial_images = {}  # []
         self.main_rectangle_boxes = []  # []
         self.main_rectangle_images = []  # []
         self.contours = []  # [[]]
@@ -466,17 +517,52 @@ class PhotoProcessing(QtCore.QObject):
         self.colors = []
 
         #self.processImage()
-        self.setupUI()
-        self.getInitialImages()
-        self.findCells()
-        self.visualizeResults()
+        self.selectFiles()
         #self.preprocessImages()
 
+
+    def selectFiles(self):
+        open_photo_dialog = OpenPhotoDialog()
+        photo_filenames = open_photo_dialog.getOpenFileNames(self.main_window, 'Открыть фото', '',
+                                                             "Изображения (*.jpg *.jpeg *.png)")
+        if len(photo_filenames[0]) > 0:
+            #print(photo_filenames[0])
+            self.filenames = photo_filenames[0]
+            self.photos_count = len(self.filenames)
+            self.photos_selected = True
+            self.adjustProcess()
+        else:
+            MyErrorsWarnings().open_photo_empty_warnings(self.main_window)
+
+    def adjustProcess(self):
+        adjusting_dialog = AdjustmentDialog(self.filenames)
+        if adjusting_dialog.exec():
+            self.conf = adjusting_dialog.getConf()
+            self.iou = adjusting_dialog.getIoU()
+            self.max_det = adjusting_dialog.getMaxDet()
+            self.max_rows = adjusting_dialog.getRows()
+            self.max_columns = adjusting_dialog.getColumns()
+            print(self.conf)
+            types = adjusting_dialog.getTypes()
+            print("adjust ok", types)
+            for i, image in enumerate(types):
+                self.modes[image].append(self.filenames[i])
+            self.radius_fractions = [self.config.cells_color_radius_fraction for i in range(self.photos_count)]
+            self.setupUI()
+            self.getInitialImages()
+            self.findCells()
+            self.visualizeResults()
 
 
 
     def setupUI(self):
+
         print("ok postprocess setupui")
+        frame_stacked_widget = find_child(self.frame, child_type=QtWidgets.QStackedWidget)
+        if frame_stacked_widget is not None:
+            frame_stacked_widget.setParent(None)
+            print("closing")
+
         # header
         self.header.setLineWidth(0)
         self.header.setFrameStyle(QtWidgets.QFrame.Shape.Panel)
@@ -502,65 +588,64 @@ class PhotoProcessing(QtCore.QObject):
 
         header_save_button = find_child(header_photo_processing_box, child_name="header_photo_processing_save_button")
         header_save_button.clicked.connect(self.onSaveButtonClicked)
-
-
-
-
-
-
-
-
-        #header_photo_processing_circles_button.clicked.connect(self.onCirclesButtonClicked)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        #filename_label = QtWidgets.QLabel(text=self.filenames[0], objectName="filename_label")
-        #filename_label.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum,
-                                     #QtWidgets.QSizePolicy.Policy.Maximum)
-
-
-
-
-
-
-
-        #print(header_photo_processing_box.children())
-
-
-
-
-
+        print("header ok")
 
         # right sidebar
         self.right_sidebar.setFixedWidth(200)
-
-
-
-
-
-
-
+        self.right_sidebar_stacked_widget = find_child(self.right_sidebar, child_type=QtWidgets.QStackedWidget)
+        #self.right_sidebar_stacked_widget.setVisible(True)
+        print("right_sidebar_stacked_widget found")
+        right_sidebar_photo_processing_stacked_box = find_child(self.right_sidebar_stacked_widget, QtWidgets.QStackedWidget)
+        print("right_sidebar_photo_processing_stacked_box found")
+        self.right_sidebar_stacked_widget.setCurrentWidget(right_sidebar_photo_processing_stacked_box)
+        print("right_sidebar_stacked_widget set")
+        #right_sidebar_photoprocessing_info_frame = find_child(child_name="right_sidebar_photoprocessing_info_frame")
+        right_sidebar_photoprocessing_contours_frame = find_child(right_sidebar_photo_processing_stacked_box, child_name="right_sidebar_photoprocessing_contours_frame")
+        print("right_sidebar_photoprocessing_contours_frame found")
+        #right_sidebar_photoprocessing_contours_layout = QtWidgets.QGridLayout()
+        #right_sidebar_photoprocessing_contours_edit_button_icon = QtGui.QIcon("icons/icons8-select-cursor-24.png")
+        #right_sidebar_photoprocessing_contours_edit_button = QtWidgets.QPushButton(right_sidebar_photoprocessing_contours_edit_button_icon, "Редактировать")
+        right_sidebar_photoprocessing_contours_edit_button = find_child(right_sidebar_photoprocessing_contours_frame, child_name="right_sidebar_photoprocessing_contours_edit_button")
+        print("right_sidebar_photoprocessing_contours_edit_button found")
+        right_sidebar_photoprocessing_contours_edit_button.clicked.connect(self.onContoursEditButtonClicked)
+        print("right_sidebar_photoprocessing_contours_edit_button connected")
+        #right_sidebar_photoprocessing_contours_apply_button = QtWidgets.QPushButton("Применить")
+        #right_sidebar_photoprocessing_contours_radius_fraction_input = find_child(right_sidebar_photoprocessing_contours_frame, child_type=QtWidgets.QDoubleSpinBox)
+        # if right_sidebar_photoprocessing_contours_radius_fraction_input is not None:
+        #     right_sidebar_photoprocessing_contours_radius_fraction_input.setParent(None)
+        #     print("double spinbox closing")
+        print("radius fractions: ", self.radius_fractions)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input = find_child(right_sidebar_photoprocessing_contours_frame, child_type=QtWidgets.QDoubleSpinBox)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setMinimum(0.1)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setMaximum(0.9)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setSingleStep(0.1)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setValue(self.config.cells_color_radius_fraction)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setReadOnly(True)
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.valueChanged.connect(self.onRadiusFractionSpinboxChanged)
+        print(self.right_sidebar_photoprocessing_contours_radius_fraction_input, self.right_sidebar_photoprocessing_contours_radius_fraction_input.isReadOnly(), self.right_sidebar_photoprocessing_contours_radius_fraction_input.value())
+        # right_sidebar_photoprocessing_contours_layout.addWidget(right_sidebar_photoprocessing_contours_edit_button, 1, 1)
+        # right_sidebar_photoprocessing_contours_layout.addWidget(right_sidebar_photoprocessing_contours_apply_button, 1, 2)
+        # right_sidebar_photoprocessing_contours_layout.addWidget(self.right_sidebar_photoprocessing_contours_radius_fraction_input, 2, 1)
+        # right_sidebar_photoprocessing_contours_frame.setLayout(right_sidebar_photoprocessing_contours_layout)
+        # right_sidebar_photoprocessing_colors_frame = QtWidgets.QFrame(objectName="right_sidebar_photoprocessing_contours_frame")
+        # right_sidebar_photo_processing_stacked_box.addWidget(right_sidebar_photoprocessing_info_frame)
+        # right_sidebar_photo_processing_stacked_box.addWidget(right_sidebar_photoprocessing_contours_frame)
+        # right_sidebar_photo_processing_stacked_box.addWidget(right_sidebar_photoprocessing_colors_frame)
+        # right_sidebar_photo_processing_stacked_box.setCurrentIndex(2)
 
 
         # frame
         self.frame_stacked_widget = QtWidgets.QStackedWidget(objectName="frame_stacked_widget")
-        self.frame_stacked_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
-        print("stacked widget init")
+        #self.frame_stacked_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Minimum)
+
+        print("stacked widget init", self.frame_stacked_widget)
         #print(self.frame_stacked_widget.sizePolicy().horizontalPolicy())
 
         for i in range(self.photos_count):
             stage_stacked_widget = QtWidgets.QStackedWidget()
+            #stage_stacked_widget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum,
+            #                                        QtWidgets.QSizePolicy.Policy.Minimum)
+
 
             rectangle_graphics_view = QtWidgets.QGraphicsView()
             rectangle_graphics_scene = QtWidgets.QGraphicsScene()
@@ -589,7 +674,6 @@ class PhotoProcessing(QtCore.QObject):
         print(header_photo_processing_box.children())
 
 
-
     def updateContours(self, image_index):
         pass
 
@@ -604,13 +688,36 @@ class PhotoProcessing(QtCore.QObject):
                 button.setChecked(True)
                 break
 
+        # right sidebar
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setValue(self.radius_fractions[ind])
+
     def onStageButtonClicked(self, ind):
 
         self.frame_stacked_widget.widget(self.current_image_index).setCurrentIndex(ind)
+        self.right_sidebar_stacked_widget.currentWidget().setCurrentIndex(ind)
+
+    def onContoursEditButtonClicked(self):
+        self.right_sidebar_photoprocessing_contours_radius_fraction_input.setReadOnly(False)
+        contours_graphics_view = self.frame_stacked_widget.widget(self.current_image_index).widget(1)
+        current_items = contours_graphics_view.items()
+        for item in current_items:
+            if type(item) == QtWidgets.QGraphicsPixmapItem:
+                current_pixmap_item = item
+                break
+        print(current_pixmap_item)
+        print("onContoursEditButtonClicked")
+
+
+    def onRadiusFractionSpinboxChanged(self, value):
+        self.radius_fractions[self.current_image_index] = value
+
 
 
     def onSaveButtonClicked(self):
         self.write_simple_table()
+
+    def drawContoursPixmap(self):
+        pass
 
     def write_simple_table(self):
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(None, "Сохранить таблицу цветов", "",
@@ -630,13 +737,13 @@ class PhotoProcessing(QtCore.QObject):
             c.value = "G"
             c = ws.cell(row=1, column=4)
             c.value = "B"
-            rows_count = self.cellspostprocess_data[i].rows_count
-            columns_count = self.cellspostprocess_data[i].columns_count
-            table_of_centers = self.cellspostprocess_data[i].table_of_centers
-            table_of_blue_int = self.cellspostprocess_data[i].table_of_blue_int
-            table_of_green_int = self.cellspostprocess_data[i].table_of_green_int
-            table_of_red_int = self.cellspostprocess_data[i].table_of_red_int
-            for j, row in enumerate(self.cellspostprocess_data[i].table_of_centers):
+            rows_count = self.cellspostprocess_data[image].rows_count
+            columns_count = self.cellspostprocess_data[image].columns_count
+            table_of_centers = self.cellspostprocess_data[image].table_of_centers
+            table_of_blue_int = self.cellspostprocess_data[image].table_of_blue_int
+            table_of_green_int = self.cellspostprocess_data[image].table_of_green_int
+            table_of_red_int = self.cellspostprocess_data[image].table_of_red_int
+            for j, row in enumerate(self.cellspostprocess_data[image].table_of_centers):
                 for k, column in enumerate(row):
                     c = ws.cell(row=2+j*columns_count+k, column=1)
                     c.value = abc[j]+str(k+1)
@@ -695,47 +802,91 @@ class PhotoProcessing(QtCore.QObject):
             file = open(image, "rb")
             data = file.read()
             initial_image = cv2.imdecode(np.frombuffer(data, np.uint8), flags=cv2.IMREAD_COLOR)
-            initial_image = cv2.cvtColor(initial_image, cv2.COLOR_BGR2RGB)
-            self.initial_images.append(initial_image)
+            #initial_image = cv2.cvtColor(initial_image, cv2.COLOR_BGR2RGB)
+            self.initial_images[image] = initial_image
 
     def findCells(self):
+        for mode in self.modes.keys():
+            if len(self.modes[mode]) > 0:
+                cv_images = [self.initial_images[n] for n in self.modes[mode]]
+                names = self.modes[mode]
+                cf = CellsFinder(cv_images, mode, conf=self.conf, iou=self.iou, max_det=self.max_det)
+                print(f"mode {mode} is done!")
+                for i, name in enumerate(names):
+                    self.results[name] = cf.results[i]
+
+
+    def _findCells(self):
         #modes = {'rgb camag': 0, 'rgb camera': 0, 'ir': 0, '366': 0, '254': 0}
-        for image in self.filenames:
+        for i, image in enumerate(self.filenames):
             mode = os.path.splitext(image)[0].split(sep=" ")[-1]
             if mode in self.modes.keys():
                 self.modes[mode].append(image)
+                self.images_modes[image] = mode
             else:
+                self.images_modes[image] = mode
                 self.wrong_modes.append(mode)
                 self.wrong_images.append(image)
         # сделать мультипроцессорное распознавание для разных типов
-
-        cf = CellsFinder(self.initial_images, 'universal')
-        self.results = cf.results
+        for mode in self.modes.keys():
+            if len(self.modes[mode]) > 0:
+                cv_images = [self.initial_images[n] for n in self.modes[mode]]
+                names = self.modes[mode]
+                cf = CellsFinder(cv_images, mode)
+                print(f"mode {mode} is done!")
+                for i, name in enumerate(names):
+                    self.results[name] = cf.results[i]
+        if len(self.wrong_images) > 0:
+            cv_images = [self.initial_images[n] for n in self.wrong_images]
+            cf = CellsFinder(cv_images, 'universal')
+            print("mode universal is done")
+            for i, n in enumerate(self.wrong_images):
+                self.results[n] = cf.results[i]
         print("ok cf")
+
+
+
+
+
+
+
     def visualizeResults(self):
-        for i in range(self.photos_count):
-            cp = CellsPostprocessor(self.results[i], self.initial_images[i])
-            self.cellspostprocess_data.append(cp)
+        print("visualize start")
+        for i, name_image in enumerate(self.initial_images.items()):
+            cp = CellsPostprocessor(self.results[name_image[0]], name_image[1], self.max_rows, self.max_columns)
+            self.cellspostprocess_data[name_image[0]] = cp
             print("ok cp")
+
 
             initial_graphics_view = self.frame_stacked_widget.widget(i).widget(0)
             contours_graphics_view = self.frame_stacked_widget.widget(i).widget(1)
             colors_graphics_view = self.frame_stacked_widget.widget(i).widget(2)
 
-            scene_width = initial_graphics_view.width()
-            scene_height = initial_graphics_view.height()
 
-            image_aspect_ratio = cp.rotated_image.shape[1]/cp.rotated_image.shape[0] #для повернутого изображения
-            if image_aspect_ratio > 1:
-                resized_width = scene_width
-                resized_height = round(scene_width/image_aspect_ratio)
+
+            scene_width = self.frame.width()-30
+            scene_height = self.frame.height()-30
+            scene_aspect_ratio = scene_width / scene_height
+            if cp.success:
+                image_aspect_ratio = cp.rotated_image.shape[1]/cp.rotated_image.shape[0] #для повернутого изображения
+                print(image_aspect_ratio, scene_aspect_ratio)
             else:
-                resized_width = round(scene_width*image_aspect_ratio)
+                image_aspect_ratio = cp.image.shape[1]/cp.image.shape[0]
+            if image_aspect_ratio < scene_aspect_ratio:
+                resized_width = round(scene_height * image_aspect_ratio)
                 resized_height = scene_height
+
+            else:
+                resized_width = scene_width
+                resized_height = round(scene_width / image_aspect_ratio)
             #pix_initial_image = from_cv2_to_pixmap(scale_cv2(cp.rotated_image, resized_width, resized_height))
-            pix_initial_image = from_cv2_to_pixmap(cp.rotated_image)
+            if cp.success:
+                pix_initial_image = from_cv2_to_pixmap(cp.rotated_image)
+            else:
+                pix_initial_image = from_cv2_to_pixmap(cp.image)
             #initial_graphics_view.setSceneRect(0, 0, 1200, 600)
             #initial_graphics_view.fitInView(initial_graphics_view.scene().sceneRect())
+            #initial_graphics_view.setSceneRect(0, 0, 700, 600)
             initial_graphics_view.scene().addPixmap(pix_initial_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
             #initial_graphics_view.scene().addPixmap(pix_initial_image)
             print("ok init resize")
@@ -745,23 +896,43 @@ class PhotoProcessing(QtCore.QObject):
             print("graphics view", initial_graphics_view.sceneRect(), initial_graphics_view.width(), initial_graphics_view.height())
             print("scene", initial_graphics_view.scene().width(), initial_graphics_view.scene().height())
             print("pix", pix_initial_image.width(), pix_initial_image.height())
-
-            pix_contours_image = from_cv2_to_pixmap(cp.contours_image)
-            contours_graphics_view.scene().addPixmap(pix_contours_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
+            if cp.success:
+                image_aspect_ratio = cp.contours_image.shape[1]/cp.contours_image.shape[0] #для повернутого изображения
+                print(image_aspect_ratio, scene_aspect_ratio)
+            else:
+                image_aspect_ratio = cp.image.shape[1]/cp.image.shape[0]
+            if image_aspect_ratio < scene_aspect_ratio:
+                resized_width = round(scene_height * image_aspect_ratio)
+                resized_height = scene_height
+            else:
+                resized_width = scene_width
+                resized_height = round(scene_width / image_aspect_ratio)
+            if cp.success:
+                pix_contours_image = from_cv2_to_pixmap(cp.contours_image, )
+            else:
+                pix_contours_image = from_cv2_to_pixmap(cp.image)
+            contours_pixmap_item = contours_graphics_view.scene().addPixmap(pix_contours_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
             #contours_graphics_view.scene().addPixmap(pix_contours_image)
             print("ok cont resize")
+            if not cp.success:
+                continue
+            rows_count = cp.rows_count
+            columns_count = cp.columns_count
+            colors_aspect_ratio = columns_count / rows_count
+
 
             rgb_pretty_image = cv2.cvtColor(cp.pretty_image, cv2.COLOR_BGR2RGB)
             print("ok bgr to rgb")
             pix_colors_image = from_cv2_to_pixmap(cp.pretty_image)
             print("ok colors cv to pix")
             image_aspect_ratio = pix_colors_image.width() / pix_colors_image.height()  # для повернутого изображения
-            if image_aspect_ratio > 1:
+            if image_aspect_ratio < scene_aspect_ratio:
+                resized_width = round(scene_height * image_aspect_ratio)
+                resized_height = scene_height
+
+            else:
                 resized_width = scene_width
                 resized_height = round(scene_width / image_aspect_ratio)
-            else:
-                resized_width = round(scene_width * image_aspect_ratio)
-                resized_height = scene_height
 
             colors_graphics_view.scene().addPixmap(pix_colors_image.scaled(resized_width, resized_height, transformMode=QtCore.Qt.TransformationMode.SmoothTransformation))
             #colors_graphics_view.scene().addPixmap(pix_colors_image)
@@ -871,13 +1042,9 @@ class PhotoProcessing(QtCore.QObject):
 
 
 
-
-
-        frame_stacked_widget = find_child(self.frame, child_type=QtWidgets.QStackedWidget)
-        frame_stacked_widget.setParent(None)
-        print("closing")
-
-
+        # open_photo_dialog = find_child(self.main_window, child_type=OpenPhotoDialog)
+        # if open_photo_dialog is not None:
+        #     open_photo_dialog.cl
 
 class MyErrorsWarnings:
     def __init__(self):
@@ -891,134 +1058,16 @@ class MyErrorsWarnings:
 
 
 
+
+
 def main():
 
-    _style = """
 
-/* buttons*/
-QPushButton#pushButton:hover {
-    color: green;
-    background-color: white;
-    border: none;
-}
-QPushButton#pushButton {
-    color: white;
-    background-color: green;
-    border: none;
-}
-
-
-
-/*base frames*/
-QFrame#frame {
-    background-color: white;
-
-}
-QFrame#left_sidebar {
-    background-color: rgb(45, 45, 52);
-}
-QFrame#header {
-    background-color: rgb(45, 45, 52);
-    padding: 0px 0px 0px 0px;
-}
-QFrame#right_sidebar {
-    background-color: rgb(45, 45, 52);
-}
-
-
-
-/*photo processing */
-QFrame#header_photo_processing_box {
-    background-color: rgb(45, 45, 52);
-}
-
-QComboBox#header_photo_processing_files_combobox {
-    border-radius: 3px;
-    background-color: white;
-    padding: 5px 5px 5px 5px;
-    max-width: 400px;
-
-}
-QComboBox#header_photo_processing_files_combobox::drop-down {
-    border-radius: 3px;
-    background-color: white;
-    padding: 5px 5px 5px 5px;
-
-}
-
-QPushButton#header_photo_processing_rectangle_button {
-    background-color: white;
-    color: black;
-    border: 2px solid white;
-    padding: 5px 5px 5px 5px;
-
-}
-QPushButton#header_photo_processing_rectangle_button:checked {
-
-    border: 2px solid rgb(45, 45, 52);
-
-}
-QPushButton#header_photo_processing_circles_button {
-    background-color: white;
-    color: black;
-    border: 2px solid white;
-    padding: 5px 5px 5px 5px;
-
-}
-QPushButton#header_photo_processing_circles_button:checked {
-
-    border: 2px solid rgb(45, 45, 52);
-
-}
-
-QPushButton#header_photo_processing_colors_button {
-    background-color: white;
-    color: black;
-    border: 2px solid white;
-    padding: 5px 5px 5px 5px;
-
-}
-QPushButton#header_photo_processing_colors_button:checked {
-
-    border: 2px solid rgb(45, 45, 52);
-
-}
-QPushButton#header_photo_processing_save_button {
-    background-color: green;
-    color: white;
-    border: 2px solid green;
-    padding: 5px 5px 5px 5px;
-
-}
-QPushButton#header_photo_processing_save_button:pressed {
-
-    border: 2px solid white;
-
-
-}
-
-
-QLabel#filename_label {
-    background-color: white;
-    padding: 5px 5px 5px 5px;
-}
-
-
-/*statusbar*/
-QStatusBar {
-    background-color: rgb(45, 45, 52);
-}
-
-/*graphics view*/
-QGraphicsView {
-    border: none;
-}
-"""
 
     app = QtWidgets.QApplication(sys.argv)
 
     w = MainWindow()
-    app.setStyleSheet(_style)
+    app.setStyleSheet(style)
     app.exec()
 
 
